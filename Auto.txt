@@ -1,0 +1,128 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+  <meta charset="UTF-8">
+  <title>5 Rastgele YouTube Videosu</title>
+  <style>
+    body {
+      background: #111;
+      color: #fff;
+      font-family: sans-serif;
+      text-align: center;
+      padding: 20px;
+    }
+    input, button {
+      padding: 10px;
+      font-size: 16px;
+      margin: 10px auto;
+      width: 90%;
+      max-width: 600px;
+      border-radius: 8px;
+      border: none;
+    }
+    #playersContainer {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+      gap: 15px;
+      margin-top: 20px;
+    }
+    .playerBox {
+      width: 100%;
+      height: 200px;
+    }
+  </style>
+</head>
+<body>
+
+<h1>📺 5 Rastgele YouTube Kanal Videosu</h1>
+<input type="text" id="channelUrl" placeholder="https://www.youtube.com/@kanalad" />
+<button onclick="start()">Başlat</button>
+
+<div id="playersContainer">
+  <div class="playerBox" id="player0"></div>
+  <div class="playerBox" id="player1"></div>
+  <div class="playerBox" id="player2"></div>
+  <div class="playerBox" id="player3"></div>
+  <div class="playerBox" id="player4"></div>
+</div>
+
+<script src="https://www.youtube.com/iframe_api"></script>
+<script>
+const apiKey = 'AIzaSyCVHxCArhRE_8nse_ONkzCcoAb99yj2xf0';
+let allVideoIds = [];
+let players = [];
+
+function extractUsername(url) {
+  const match = url.match(/youtube\.com\/@([a-zA-Z0-9_-]+)/);
+  return match ? match[1] : null;
+}
+
+async function start() {
+  const input = document.getElementById('channelUrl').value.trim();
+  const username = extractUsername(input);
+  if (!username) return alert("Geçerli kanal linki girin.");
+
+  // Kanal ID'yi al
+  const res1 = await fetch(`https://www.googleapis.com/youtube/v3/search?part=snippet&type=channel&q=${username}&key=${apiKey}`);
+  const data1 = await res1.json();
+  const channelId = data1.items[0].snippet.channelId;
+
+  // Uploads listesini al
+  const res2 = await fetch(`https://www.googleapis.com/youtube/v3/channels?part=contentDetails&id=${channelId}&key=${apiKey}`);
+  const data2 = await res2.json();
+  const uploadsId = data2.items[0].contentDetails.relatedPlaylists.uploads;
+
+  // Videoları çek
+  allVideoIds = [];
+  let nextPageToken = '';
+  do {
+    const res3 = await fetch(`https://www.googleapis.com/youtube/v3/playlistItems?part=snippet&maxResults=50&playlistId=${uploadsId}&key=${apiKey}&pageToken=${nextPageToken}`);
+    const data3 = await res3.json();
+    data3.items.forEach(item => {
+      allVideoIds.push(item.snippet.resourceId.videoId);
+    });
+    nextPageToken = data3.nextPageToken;
+  } while (nextPageToken && allVideoIds.length < 100);
+
+  if (allVideoIds.length < 5) return alert("Yeterli video yok.");
+
+  loadPlayers();
+}
+
+function getRandomVideoId() {
+  return allVideoIds[Math.floor(Math.random() * allVideoIds.length)];
+}
+
+function loadPlayers() {
+  for (let i = 0; i < 5; i++) {
+    if (players[i]) {
+      players[i].loadVideoById(getRandomVideoId());
+    } else {
+      players[i] = new YT.Player(`player${i}`, {
+        height: '200',
+        width: '100%',
+        videoId: getRandomVideoId(),
+        playerVars: {
+          autoplay: 1,
+          mute: 0,
+          controls: 1,
+          rel: 0
+        },
+        events: {
+          'onStateChange': (event) => {
+            if (event.data === YT.PlayerState.ENDED) {
+              const index = players.findIndex(p => p.getIframe() === event.target.getIframe());
+              if (index !== -1) {
+                players[index].loadVideoById(getRandomVideoId());
+              }
+            }
+          }
+        }
+      });
+    }
+  }
+}
+</script>
+
+</body>
+</html>
